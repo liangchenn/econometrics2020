@@ -2,7 +2,6 @@ library(extRemes)
 library(dplyr)
 # Problem 1-------------------------------------------------------------------------
 
-
 # Setups ------------------------------------------------------------------
 
 n <- 400
@@ -14,8 +13,6 @@ x2 <- rchisq(n, df = 1)
 
 u1 <- revd(n)
 u2 <- revd(n)
-
-
 
 # (1) data Generating ---------------------------------------------------------------------
 
@@ -62,7 +59,7 @@ sum(res$llk)
 
 # grid search -------------------------------------------------------------
 
-
+# TODO: could add options that give beta1 and beta2 different range.
 get_mle_betas <- function(from = -5, to = 5, step = 0.1){
   # expand grid
   grids <- expand.grid(seq(from, to, step), seq(from, to, step))
@@ -77,6 +74,5 @@ get_mle_betas <- function(from = -5, to = 5, step = 0.1){
   return(betas)
 }
 
-
-get_mle_betas(-1, 1, 0.01)
 get_mle_betas()
+get_mle_betas(-1, 1, 0.01)
