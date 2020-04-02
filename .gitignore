@@ -2,3 +2,6 @@
 .Rproj
 .DS_Store
 .Rproj.user
+demo/
+*.pdf
+
