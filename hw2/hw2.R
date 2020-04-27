@@ -1,4 +1,4 @@
-# setwd('./hw2/')
+setwd('./hw2/')
 library(rstan)
 library(data.table)
 library(magrittr)
@@ -32,10 +32,11 @@ loglik_fn <- function(theta){
   
   lambda <- theta[1]
   sigma <- theta[2]
-  alpha_g  <- theta[3]
+  alpha_g <- theta[3]
   beta_  <- theta[-3:-1]
   beta1  <- beta_[1:(length(beta_)/2)]
   beta2  <- beta_[((length(beta_)/2) + 1):length(beta_)]
+  # alpha_g <- theta[30:105]
   
   llk <- 0
   for (i in 1:76) {
@@ -55,7 +56,7 @@ loglik_fn <- function(theta){
 
 # optimization using `maxLik`-package-provided BFGS method
 # set the initial value to (0, 1, 0,...,0) (29x1)
-theta_0 <- c(0, 1, rep(0, 27))
+theta_0 <- c(0, 1, 0, rep(0, 26))
 
 # estimate
 t <- proc.time()
@@ -70,6 +71,9 @@ summary(estimate)
 # sigma    0.697826   0.010994   63.476    < 2e-16 ***
 # alpha_g  3.398482   0.151347   22.455    < 2e-16 ***
 
+
+
+# Problem 2 ---------------------------------------------------------------
 
 
 
