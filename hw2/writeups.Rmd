@@ -1,3 +1,161 @@
+---
+title: "Assignment2"
+output: 
+  html_notebook:
+    theme: united
+    highlight: tango 
+    toc: true
+    toc_float:
+      smooth_scroll: yes
+      collapsed: false
+    
+---
+```{r}
+library(data.table)
+library(magrittr)
+library(maxLik)
+```
+
+## Problem 1
+Use Maximum Likelihood to estimate the SAR model:
+
+$Y_g= \lambda W_g Y_g + X_g \beta_1 + W_g X_g \beta_2 + \alpha_g \ell_g + \epsilon_g$  
+
+where $g = 1,... ,G$
+
+First, I use `preprocessing01_get_features_name.R` to get W, Y, X for 76 groups.
+
+```{r}
+# Problem 1 ---------------------------------------------------------------
+
+# `preprocessing01_get_feature_name.R` get the features names and features to use.
+source('./preprocessing01_get_features_name.R')
+
+# extract x's columns
+cols <- match(feature.to.use, feature.names)
+
+# read all 76 groups/ networks data into 2 lists
+files_nx <- list.files('./problem_set_2_sample/network/', full.names = T)
+files_cov <- list.files('./problem_set_2_sample/group/', full.names = T)
+
+nx <- lapply(files_nx, fread) 
+group <- lapply(files_cov, fread)
+
+# extract gpa y and covariates x for all 76 data, and convert into matrix
+nx <- lapply(nx, as.matrix)
+ys <- lapply(group, function(x) x[, .SD, .SDcols=which(feature.names=='gpa')] %>% as.matrix)
+xs <- lapply(group, function(x) x[, ..cols]  %>% as.matrix)
+```
+
+
+Define Log-likelihood function
+
+```{r}
+loglik_fn <- function(theta){
+  
+  lambda <- theta[1]
+  sigma <- theta[2]
+  alpha_g <- theta[3]
+  beta_  <- theta[-3:-1]
+  beta1  <- beta_[1:(length(beta_)/2)]
+  beta2  <- beta_[((length(beta_)/2) + 1):length(beta_)]
+  # alpha_g <- theta[30:105]
+  
+  llk <- 0
+  for (i in 1:76) {
+    
+    W <- nx[[i]]
+    ng <- nrow(W)
+    y <- ys[[i]]
+    x <- xs[[i]]
+    
+    ep <- (diag(ng) - lambda * W) %*% y - x %*% beta1 - W %*% x %*% beta2 - alpha_g
+    res <- -(ng/2)*log(2*pi) - (ng)*log(sigma) + log(abs(det(diag(ng) - lambda*W))) - (1/2/sigma**2) * (t(ep) %*% ep)
+    llk <- llk + res
+  }
+  
+  return(llk)
+}
+```
+
+
+Optimization using Quasi-Newton `BFGS` method.
+
+```{r message=FALSE, warning=FALSE}
+# optimization using `maxLik`-package-provided BFGS method
+# set the initial value to (0, 1, 0,...,0) (29x1)
+theta_0 <- c(0, 1, 0, rep(0, 26))
+
+# estimate
+t <- proc.time()
+estimate <- maxLik(loglik_fn, start = theta_0, method = 'BFGS')
+proc.time() - t
+
+```
+
+The following result suggests that the coefficients converge sucessfully,  
+
+and the coefficients are listed as $(\lambda, \sigma^2, \alpha, \beta_1', \beta_2')$.  
+
+We could see that lambda is converge to .05, which is a rather valid result,   
+
+since lambda should be in [-0.1, 0.1] interval.
+
+```{r}
+summary(estimate)
+```
+
+
+## Problem 2
+
+### (1) beta
+
+Posterior distribution of $\beta$.  
+
+Given $\beta \sim N(\beta_0, B_0)$
+
+
+$$P(\beta) = (2\pi \cdot |B_0|)^{1/2} \cdot exp(-1/2 (\beta - \beta_0)^T B_0^{-1}(\beta - \beta_0))$$
+And from the assumption that $\epsilon \sim N(0 , \sigma_{\epsilon}^2)$,  
+
+We could further get that:
+
+$$P(y_g | \theta) = N((I - \lambda W)^{-1}(X_g \beta - \alpha \ell), \sigma_{\epsilon}^2 (I - \lambda W_g)^{-1^T}(I - \lambda W_g))  $$
+By bayes rule we could multiply those two term, $P(\beta|y) = \prod_g^G P(y_g|\beta)P(\beta)/P(y)$ and get:
+
+
+$$P(\beta | y, \theta) \sim N(\hat \beta, B)$$
+where
+
+$$\hat \beta  = ((B_0)^{-1} + \frac{1}{\sigma_{e}^2} \sum_g^G X_g'X_g)^{-1} ((B_0)^{-1} \beta_0 + \frac{1}{\sigma_{e}^2} \sum_g^G X_g'((I - \lambda W_g)Y_g - X_g\beta - \alpha_g \ell_g)$$
+and
+$$B = ((B_0)^{-1} + \frac{1}{\sigma_{e}^2} \sum_g^G X_g'X_g)^{-1}$$
+
+### (2) alpha
+
+
+
+$$\alpha_g \sim N(\alpha_0, A_0)$$, where
+
+The Posterior distribution for $\alpha$ will be:  $$N(\hat \alpha, \hat A)$$
+
+$$\hat \alpha = A(A_0^{-1}\alpha_0 + \frac{1}{\sigma_{e}^2} \sum_g^G\ell_g((I - \lambda W_g)Y_g - X_g\beta)$$  
+
+$$\hat A = (A_0^{-1} + \frac{1}{\sigma_{e}^2}\ell_g\ell_g')$$
+
+
+### (3) MCMC
+
+Follow each posterior distribution, we could use mixed MCMC method to get each coefficient.  
+
+Yet here I have a difficulty dealing the lambda part, although I change the product part by the log-summation form.
+
+The likelihood value still be too small for model to capture, and have NA value produced, this hinderes the result to be correct.
+
+In my code, the lambda will be in normal range in 10 runs; however, above 10 runs it will shoot to the roof.
+
+
+```{r}
 library(mvtnorm)
 library(invgamma)
 library(magrittr)
@@ -51,7 +209,7 @@ while(monte <= R){
   Alpha.0 <- 1
   A.0     <- 1
   
-  
+   
   # =============================       estimation store     =============================
   # T = 1:N
   
@@ -195,6 +353,27 @@ while(monte <= R){
   
   
 }
+```
+
+
+
+### (4) Hypothesis Testing
+
+Since the MCMC method coded above doesn't work sucessfully, I could only give my thoughts on this question.  
+
+I think the way is to plot a posterior density based on the posterir draws of $\lambda$.  
+
+Then maybe could found the probability of $\lambda = 0$.
+
+
+
+
+
+
+
+
+
+
 
 
 
